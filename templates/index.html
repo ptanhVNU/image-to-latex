@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload File</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5">Upload Image</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Choose image to upload</label>
+                <input type="file" class="form-control-file" id="file" name="file" accept="image/*" required>
+            </div>
+            <img id="preview" src="#" alt="Image Preview" style="max-width: 100%; display: none;">
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" role="dialog" aria-labelledby="loadingModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body text-center" id="modalBody">
+                    <div class="spinner-border text-primary" role="status" id="loadingSpinner">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-3" id="modalText">Uploading...</p>
+                    <button type="button" class="btn btn-secondary mt-3" data-dismiss="modal" id="closeBtn" style="display:none;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('file').addEventListener('change', function(event) {
+            // Xoá các trạng thái cũ
+            document.getElementById('preview').src = '#';
+            document.getElementById('preview').style.display = 'none';
+
+            document.getElementById('modalText').innerText = 'Uploading...';
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('closeBtn').style.display = 'none';
+
+            // Xử lý file mới
+            var file = event.target.files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('preview').src = e.target.result;
+                    document.getElementById('preview').style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            var form = this;
+            var formData = new FormData(form);
+
+            // Hiển thị dialog loading
+            $('#loadingModal').modal('show');
+
+            // Thực hiện upload thông qua AJAX
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+                // Lấy tên file từ header Content-Disposition
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let fileName = 'downloaded_file'; // Tên file mặc định
+                if (contentDisposition) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                    if (matches != null && matches[1]) { 
+                        fileName = matches[1].replace(/['"]/g, '');
+                    }
+                }
+                return response.blob().then(blob => ({ blob, fileName }));
+            })
+            .then(({ blob, fileName }) => {
+                const downloadUrl = URL.createObjectURL(blob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = downloadUrl;
+                downloadLink.download = fileName; // Sử dụng tên file từ server
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(downloadUrl); // Giải phóng bộ nhớ
+
+                // Cập nhật nội dung modal để hiển thị thông báo thành công
+                document.getElementById('modalText').innerText = 'Đã thực hiện thành công và tự động tài xuống!';
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('closeBtn').style.display = 'block';
+            })
+            .catch(error => {
+                document.getElementById('modalText').innerText = 'Có lỗi xảy ra. Vui lòng thử lại.';
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('closeBtn').style.display = 'block';
+            });
+        });
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.11/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
